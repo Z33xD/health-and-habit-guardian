@@ -1,0 +1,23 @@
+# Core
+fastapi
+uvicorn[standard]
+pydantic
+
+# AWS
+boto3
+
+# Databricks
+databricks-sql-connector
+pyspark
+
+# Agent / LLM
+strands-agents
+strands-agents-tools
+ollama
+
+# Data
+pandas
+numpy
+
+# Testing
+pytest

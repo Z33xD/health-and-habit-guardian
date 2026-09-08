@@ -1,0 +1,39 @@
+# Personal Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Environment / Secrets
+.env
+.env.local
+*.pem
+*.key
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+.vite/
+
+# Databricks / AWS artifacts
+.idea/
+*.databricks-ignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Personal Documentations
+Personal Documentations/
