@@ -92,3 +92,24 @@ def get_risk_flags(user_id: str, date: str | None = None) -> list[dict]:
         params.append(date)
     base += " ORDER BY date DESC"
     return _query(base, params)
+
+
+def get_quality_metrics(table_name: str | None = None, limit: int = 10) -> list[dict]:
+    """Fetch data-quality summaries from silver.data_quality.
+
+    Args:
+        table_name: Optional filter for a specific table
+            ('activity', 'heart_rate', 'sleep').
+        limit: Max rows returned (most recent run's metrics if omitted).
+    """
+    base = (
+        f"SELECT * FROM {CATALOG}.silver.data_quality "
+        "WHERE 1 = 1"
+    )
+    params: list = []
+    if table_name:
+        base += " AND table_name = ?"
+        params.append(table_name)
+    base += " ORDER BY run_timestamp DESC LIMIT ?"
+    params.append(limit)
+    return _query(base, params)

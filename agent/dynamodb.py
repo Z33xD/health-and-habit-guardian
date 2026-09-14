@@ -38,6 +38,33 @@ def get_pipeline_status(run_id: str) -> dict | None:
         return None
 
 
+def get_latest_pipeline_run() -> dict | None:
+    """Return the most recent pipeline run by start_time.
+
+    The pipeline_runs table has run_id as partition key (no sort key),
+    so this scans all items and picks the latest start_time.
+    """
+    table = _get_table(TABLES["pipeline_runs"])
+    latest = None
+    latest_start = None
+    try:
+        resp = table.scan()
+        while True:
+            for item in resp.get("Items", []):
+                start = item.get("start_time") or item.get("end_time")
+                if start is None:
+                    continue
+                if latest_start is None or start > latest_start:
+                    latest = item
+                    latest_start = start
+            if "LastEvaluatedKey" not in resp:
+                break
+            resp = table.scan(ExclusiveStartKey=resp["LastEvaluatedKey"])
+    except ClientError:
+        pass
+    return latest
+
+
 def save_pipeline_run(data: dict) -> bool:
     try:
         _get_table(TABLES["pipeline_runs"]).put_item(Item=data)

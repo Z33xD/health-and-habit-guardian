@@ -1,110 +1,98 @@
 """Main agent entry point.
 
-Creates a Strands Agent backed by Ollama and registers the tool layer.
+Creates a Strands Agent backed by LM Studio (OpenAI-compatible) and
+registers the Phase 1 tool layer.
 Run with: python -m agent.agent
 """
 
 import os
-import sys
 
 from dotenv import load_dotenv
 from strands import Agent
-from strands.models.ollama import OllamaModel
+from strands.models.openai import OpenAIModel
 
+from agent.memory import append_to_session, create_session
 from agent.tools import (
-    check_pipeline_status,
-    check_user_risks,
-    fetch_user_anomalies,
-    load_session,
-    notify_anomaly,
-    notify_user,
-    query_risk_flags,
-    query_user_health,
-    query_weekly_trends,
-    record_anomaly,
-    resolve_anomaly,
-    save_to_session,
-    start_session,
+    get_pipeline_status,
+    get_quality_metrics,
+    get_risk_flags,
+    get_user_preferences,
+    update_anomaly_status,
 )
 
 load_dotenv()
 
 SYSTEM_PROMPT = """You are a health monitoring agent for the Health & Habit Guardian project.
 
-Your role:
-- Monitor user health data from the gold layer (daily_health, weekly_trends, risk_flags).
-- Track anomalies and pipeline status from DynamoDB.
-- Send notifications when intervention is needed.
-- Maintain conversation memory across sessions.
+You have these tools:
+- get_pipeline_status(): Check if the most recent Databricks pipeline run succeeded.
+- get_risk_flags(user_id): Get health risk flags for a user.
+- get_quality_metrics(): Check data-quality status of pipeline tables.
+- update_anomaly_status(anomaly_id, status): Mark an anomaly open or resolved.
+- get_user_preferences(user_id): Get a user's targets and notification settings.
 
-Guidelines:
-- Always check risk flags before making recommendations.
-- Respect user notification preferences and quiet hours.
-- Use specific data when giving advice — reference actual scores and metrics.
-- When you detect an issue, record it as an anomaly.
-- Keep conversations concise and actionable.
-- Never provide medical advice — frame everything as project heuristics.
-
-You have access to tools that query Databricks gold tables, DynamoDB, and send notifications.
-Use them proactively rather than guessing at data.
+Rules:
+- Always call a tool to get data before answering. Never guess numbers.
+- Reference actual metrics (sleep hours, steps, scores) in your answers.
+- Keep responses under 4 sentences.
+- These are project heuristics, not medical advice.
 """
+
+# Phase 2: add send_notification to this list when ready.
+TOOLS = [
+    get_pipeline_status,
+    get_risk_flags,
+    get_quality_metrics,
+    update_anomaly_status,
+    get_user_preferences,
+]
 
 
 def create_agent() -> Agent:
-    """Create and configure the Strands Agent."""
-    model = OllamaModel(
-        model_id=os.getenv("OLLAMA_MODEL", "llama3.1"),
-        host=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+    """Create and configure the Strands Agent backed by LM Studio."""
+    model = OpenAIModel(
+        client_args={
+            "api_key": "lm-studio",
+            "base_url": os.getenv("LM_STUDIO_URL", "http://localhost:1234/v1"),
+        },
+        model_id=os.getenv("LM_STUDIO_MODEL", "qwen2.5-coder-7b-instruct"),
+        params={"temperature": 0.3, "max_tokens": 1024},
     )
 
     return Agent(
         model=model,
         system_prompt=SYSTEM_PROMPT,
-        tools=[
-            check_pipeline_status,
-            query_user_health,
-            query_weekly_trends,
-            query_risk_flags,
-            check_user_risks,
-            fetch_user_anomalies,
-            record_anomaly,
-            resolve_anomaly,
-            notify_user,
-            notify_anomaly,
-            start_session,
-            load_session,
-            save_to_session,
-        ],
+        tools=TOOLS,
     )
 
 
-def main():
-    """Interactive agent loop."""
+def main() -> None:
+    """Interactive agent loop with persisted session memory."""
     agent = create_agent()
     print("Health & Habit Guardian Agent")
     print("Type 'exit' to quit.\n")
 
     user_id = input("Enter user_id: ").strip()
-    session_id = start_session(user_id)
-    print(f"Session started: {session_id}\n")
+    session_id = create_session(user_id)
+    print(f"Session started for user {user_id}\n")
 
     while True:
         try:
             user_input = input("You: ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nGoodbye.")
-            break
+            return
 
         if user_input.lower() in ("exit", "quit", "q"):
             print("Goodbye.")
-            break
+            return
 
         if not user_input:
             continue
 
-        save_to_session(session_id, "user", user_input)
+        append_to_session(session_id, "user", user_input)
         response = agent(user_input)
-        save_to_session(session_id, "assistant", str(response))
+        append_to_session(session_id, "assistant", str(response))
         print(f"Agent: {response}\n")
 
 

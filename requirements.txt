@@ -11,9 +11,8 @@ databricks-sql-connector
 pyspark
 
 # Agent / LLM
-strands-agents
-strands-agents-tools
-ollama
+strands-agents[openai]
+openai
 
 # Data
 pandas
