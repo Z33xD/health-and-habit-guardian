@@ -1,1 +1,1 @@
-"""Agent helper layer for Health & Habit Guardian."""
+"""Health & Habit Guardian agent package."""
